@@ -1,0 +1,1 @@
+// Deprecated. Use AndroidImageCleaner instead.
