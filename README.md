@@ -34,15 +34,31 @@ MetaRemover helps protect your privacy by exporting a clean image without unnece
 
 ## 📷 Screenshots
 
-| Home 
-<img width="409" height="771" alt="Screenshot 2026-06-29 at 5 23 24 PM" src="https://github.com/user-attachments/assets/36da12fd-fc36-4878-9b3b-a47c04e7007d" />
-| Image Selected 
-<img width="357" height="733" alt="Screenshot 2026-06-29 at 5 31 59 PM" src="https://github.com/user-attachments/assets/3f2bff20-4801-4e36-b1e5-a1fae65507ee" />
-| Image Details 
-<img width="357" height="727" alt="Screenshot 2026-06-29 at 5 32 36 PM" src="https://github.com/user-attachments/assets/07cc05b1-a792-4f11-b5ec-5cce6187bd8c" />
-| Image Clean 
-<img width="358" height="724" alt="Screenshot 2026-06-29 at 5 33 30 PM" src="https://github.com/user-attachments/assets/39d690b8-295e-48c0-bd4b-23adcc2963b9" />
+<table align="center">
+<tr>
+<td align="center">
+<b>Home</b><br><br>
+<img src="https://github.com/user-attachments/assets/36da12fd-fc36-4878-9b3b-a47c04e7007d" width="250"/>
+</td>
 
+<td align="center">
+<b>Image Selected</b><br><br>
+<img src="https://github.com/user-attachments/assets/3f2bff20-4801-4e36-b1e5-a1fae65507ee" width="250"/>
+</td>
+</tr>
+
+<tr>
+<td align="center">
+<b>Image Details</b><br><br>
+<img src="https://github.com/user-attachments/assets/07cc05b1-a792-4f11-b5ec-5cce6187bd8c" width="250"/>
+</td>
+
+<td align="center">
+<b>Image Cleaned</b><br><br>
+<img src="https://github.com/user-attachments/assets/39d690b8-295e-48c0-bd4b-23adcc2963b9" width="250"/>
+</td>
+</tr>
+</table>
 
 ---
 
