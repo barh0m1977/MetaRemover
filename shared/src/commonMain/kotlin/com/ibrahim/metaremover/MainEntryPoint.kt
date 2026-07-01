@@ -10,5 +10,9 @@ fun MainEntryPoint(appModule: AppModule) {
     val mainViewModel: MainViewModel = viewModel {
         MainViewModel(appModule.repository, appModule.saver)
     }
-    App(mainViewModel)
+    App(
+        mainViewModel,
+        updateManager = appModule.updateManager,
+        reviewManager = appModule.reviewManager
+    )
 }

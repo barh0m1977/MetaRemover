@@ -19,11 +19,14 @@ class MainActivity : ComponentActivity() {
 
         // Hide navigation and status bars for Immersive Mode
         hideSystemBars()
-
+        val updateManager = AndroidAppUpdateManager(this)
+        val reviewManager = AndroidAppReviewManager(this)
         val appModule = AppModule(
             analyzer = AndroidMetadataAnalyzer(),
             cleaner = AndroidImageCleaner(),
-            saver = AndroidImageGallerySaver(this)
+            saver = AndroidImageGallerySaver(this),
+            updateManager = updateManager,
+            reviewManager = reviewManager
         )
 
         setContent {

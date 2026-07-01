@@ -26,7 +26,11 @@ import com.ibrahim.metaremover.picker.ImagePicker
 import com.ibrahim.metaremover.presentation.MainViewModel
 
 @Composable
-fun App(viewModel: MainViewModel) {
+fun App(
+    viewModel: MainViewModel,
+    updateManager: AppUpdateManager,
+    reviewManager: AppReviewManager
+) {
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = Color(0xFF64B5F6),
@@ -42,18 +46,45 @@ fun App(viewModel: MainViewModel) {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            MetaRemoverScreen(viewModel)
+            MetaRemoverScreen(
+                viewModel = viewModel,
+                updateManager = updateManager,
+                reviewManager = reviewManager
+            )
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MetaRemoverScreen(viewModel: MainViewModel) {
+fun MetaRemoverScreen(
+    viewModel: MainViewModel,
+    updateManager: AppUpdateManager,
+    reviewManager: AppReviewManager
+) {
     val state by viewModel.state.collectAsState()
     val picker = remember { ImagePicker() }
 
+    // Bottom Sheet Control States
+    var showUpdateBottomSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+
     val launchPicker = picker.pickImage { bytes ->
         viewModel.onImagePicked(bytes)
+    }
+
+    // 1. Check for updates seamlessly when the user opens the application
+    LaunchedEffect(Unit) {
+        updateManager.checkForUpdates {
+            showUpdateBottomSheet = true
+        }
+    }
+
+    // 2. Trigger the rating system automatically right after a successful metadata save action
+    LaunchedEffect(state.isSaving) {
+        if (!state.isSaving && state.cleanedBytes != null && state.error == null) {
+            reviewManager.launchReviewFlow()
+        }
     }
 
     Scaffold(
@@ -106,6 +137,49 @@ fun MetaRemoverScreen(viewModel: MainViewModel) {
                 }
             }
 
+            // 3. Compose Multiplatform Native-Looking Dark Bottom Sheet for Updates
+            if (showUpdateBottomSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showUpdateBottomSheet = false },
+                    sheetState = sheetState,
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "✨ New Version Available!",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Update now to access the latest features, better performance, and bug fixes.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(
+                            onClick = {
+                                showUpdateBottomSheet = false
+                                updateManager.startFlexibleUpdate()
+                            },
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text("DOWNLOAD NOW", fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(20.dp))
+                    }
+                }
+            }
+
             if (state.isProcessing || state.isSaving) {
                 Box(
                     modifier = Modifier
@@ -131,6 +205,7 @@ fun MetaRemoverScreen(viewModel: MainViewModel) {
         }
     }
 }
+
 
 @Composable
 fun StatusIndicator(isCleaned: Boolean) {

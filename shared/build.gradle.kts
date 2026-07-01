@@ -41,6 +41,13 @@ kotlin {
             implementation(libs.androidx.exifinterface)
             implementation(libs.compose.uiToolingPreview)
             implementation("androidx.activity:activity-compose:1.9.0")
+
+            // For In-App Updates
+            implementation("com.google.android.play:app-update:2.1.0")
+            // For In-App Reviews
+            implementation("com.google.android.play:review:2.0.2")
+            // For asynchronous tasks
+            implementation("com.google.android.gms:play-services-tasks:18.1.0")
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
