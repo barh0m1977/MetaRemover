@@ -2,7 +2,9 @@ package com.ibrahim.metaremover.picker
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log.e
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
@@ -12,33 +14,27 @@ actual class ImagePicker {
     actual fun pickImage(result: (ByteArray?) -> Unit): () -> Unit {
         val context = LocalContext.current
 
-        // 1. Corrected the spelling to 'rememberLauncherForActivityResult'
         val launcher = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.GetContent()
+            contract = ActivityResultContracts.PickVisualMedia()
         ) { uri: Uri? ->
-            if (uri != null) {
-                // 2. Read the Uri bytes and pass them to the callback
-                val bytes = readBytesFromUri(context, uri)
-                result(bytes)
-            } else {
+            if (uri != null) result(readBytesFromUri(context, uri)) else result(null)
+        }
+
+        return {
+            try {
+                launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            } catch (e: Exception) {
+                e.printStackTrace()
                 result(null)
             }
         }
-
-        // 3. Return a lambda that triggers the launcher when clicked
-        return {
-            launcher.launch("image/*")
-        }
     }
 
-    // Helper function to convert Android Uri to ByteArray
     private fun readBytesFromUri(context: Context, uri: Uri): ByteArray? {
         return try {
-            context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                inputStream.readBytes()
-            }
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("ImagePicker", "Failed to read image", e)
             null
         }
     }

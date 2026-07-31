@@ -2,6 +2,8 @@ package com.ibrahim.metaremover.data
 
 import com.ibrahim.metaremover.domain.ImageMetadata
 import com.ibrahim.metaremover.domain.MetadataAnalyzer
+import com.ibrahim.metaremover.engine.AIProviderDetector
+import com.ibrahim.metaremover.engine.PromptDetector
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -13,6 +15,9 @@ import platform.Foundation.create
 import platform.ImageIO.*
 
 class IosMetadataAnalyzer : MetadataAnalyzer {
+    private val aiDetector = AIProviderDetector()
+    private val promptDetector = PromptDetector()
+
     @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
     override suspend fun analyze(bytes: ByteArray): ImageMetadata {
         return try {
@@ -29,8 +34,11 @@ class IosMetadataAnalyzer : MetadataAnalyzer {
             val gps = properties.objectForKey(kCGImagePropertyGPSDictionary) as? NSDictionary
             val iptc = properties.objectForKey(kCGImagePropertyIPTCDictionary) as? NSDictionary
 
-            val rawString = bytes.decodeToStringSafe().lowercase()
-            val isAI = rawString.contains("c2pa")
+            val rawString = bytes.decodeToStringSafe()
+            val isAI = rawString.lowercase().contains("c2pa")
+            val aiProvider = aiDetector.detect(rawString)
+            val prompt = promptDetector.detectPrompt(rawString)
+            val negativePrompt = promptDetector.detectNegativePrompt(rawString)
 
             // Aggressive Web Source Detection
             val webSource = iptc?.objectForKey(kCGImagePropertyIPTCSource)?.toString()
@@ -59,7 +67,12 @@ class IosMetadataAnalyzer : MetadataAnalyzer {
                 
                 dateTimeOriginal = exif?.objectForKey(kCGImagePropertyExifDateTimeOriginal)?.toString(),
 
-                isAIOrSecured = isAI,
+                isAIGenerated = isAI || aiProvider != null,
+                isAIOrSecured = isAI || aiProvider != null,
+                aiProvider = aiProvider,
+                prompt = prompt,
+                negativePrompt = negativePrompt,
+
                 copyright = tiff?.objectForKey(kCGImagePropertyTIFFCopyright)?.toString(),
                 artist = tiff?.objectForKey(kCGImagePropertyTIFFArtist)?.toString(),
                 userComment = exif?.objectForKey(kCGImagePropertyExifUserComment)?.toString(),
@@ -68,13 +81,33 @@ class IosMetadataAnalyzer : MetadataAnalyzer {
                 makerNotes = if (rawString.contains("apple")) "Detected" else null,
                 xmpData = if (rawString.contains("<?xpacket")) "Detected" else null,
                 iptcKeywords = iptc?.objectForKey(kCGImagePropertyIPTCKeywords)?.toString(),
-                
+
+                rawMetadata = extractAllTags(properties, exif, tiff, gps, iptc),
+
                 isFromWeb = isWeb,
                 webSource = webSource ?: if (isWeb) "Web Stream Detected" else null
             )
         } catch (e: Exception) {
             ImageMetadata()
         }
+    }
+
+    /** Flatten every ImageIO property dictionary into a raw key -> value map. */
+    @Suppress("UNCHECKED_CAST")
+    private fun extractAllTags(vararg dicts: NSDictionary?): Map<String, String> {
+        val map = LinkedHashMap<String, String>()
+        for (dict in dicts) {
+            // Kotlin/Native bridges NSDictionary to kotlin.Map.
+            val bridged = dict as? Map<Any?, Any?> ?: continue
+            for ((key, value) in bridged) {
+                val keyName = key?.toString() ?: continue
+                // Skip nested dictionaries; only flatten scalar leaves.
+                if (value == null || value is NSDictionary) continue
+                val valueStr = value.toString()
+                if (valueStr.isNotBlank() && !map.containsKey(keyName)) map[keyName] = valueStr
+            }
+        }
+        return map
     }
 
     private fun ByteArray.decodeToStringSafe(): String {

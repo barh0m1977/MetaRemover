@@ -1,10 +1,11 @@
 package com.ibrahim.metaremover.engine
 
-import com.ibrahim.metaremover.domain.ImageCleaner
-import com.ibrahim.metaremover.domain.ImageMetadata
-import com.ibrahim.metaremover.domain.MetadataAnalyzer
+import com.ibrahim.metaremover.core.parser.MetadataParser
+import com.ibrahim.metaremover.domain.model.ImageAnalysis
+import com.ibrahim.metaremover.domain.model.BasicMetadata
+import com.ibrahim.metaremover.domain.model.AIAnalysis
 
-class SimpleMetadataEngine : MetadataAnalyzer, ImageCleaner {
+class SimpleMetadataEngine : MetadataParser {
 
     private val aiSignatures = listOf(
         "c2pa", "contentcredentials", "com.adobe.c2pa",
@@ -14,16 +15,21 @@ class SimpleMetadataEngine : MetadataAnalyzer, ImageCleaner {
         "softwareAgent: gpt", "adobe firefly", "bing image creator"
     )
 
-    override suspend fun analyze(bytes: ByteArray): ImageMetadata {
-        val text = bytes.decodeToStringSafe().lowercase()
+    override fun canParse(bytes: ByteArray): Boolean = bytes.isJpeg() || bytes.isPng()
+
+    override suspend fun parse(bytes: ByteArray): ImageAnalysis {
+        val text = bytes.decodeToStringSafe()
+        val lowerText = text.lowercase()
         
-        val isAI = aiSignatures.any { it.lowercase() in text }
+        val isAI = aiSignatures.any { it.lowercase() in lowerText }
         
-        return ImageMetadata(
-            latitude = if ("gps" in text) "Detected" else null,
-            cameraModel = if ("model" in text) "Detected" else null,
-            isAIOrSecured = isAI,
-            c2paSoftwareAgent = if (isAI) "Potential AI Signature Found" else null
+        return ImageAnalysis(
+            basic = BasicMetadata(
+                fileSize = "${bytes.size / 1024} KB"
+            ),
+            ai = AIAnalysis(
+                isAIGenerated = isAI
+            )
         )
     }
 
@@ -52,13 +58,18 @@ class SimpleMetadataEngine : MetadataAnalyzer, ImageCleaner {
                 if (marker == 0x00 || marker == 0xFF) { i++; continue }
                 if (marker == 0xD9) { result.add(0xFF.toByte()); result.add(0xD9.toByte()); break }
                 if (marker == 0xDA) {
-                    result.addAll(this.slice(i until size).map { it })
+                    val remaining = size - i
+                    val buffer = ByteArray(remaining)
+                    this.copyInto(buffer, 0, i, size)
+                    result.addAll(buffer.toList())
                     break
                 }
                 val length = ((this[i + 2].toInt() and 0xFF) shl 8) or (this[i + 3].toInt() and 0xFF)
                 if (marker in 0xE0..0xEF || marker == 0xFE) { i += length + 2 } 
                 else {
-                    for (j in 0 until length + 2) if (i + j < size) result.add(this[i + j])
+                    val buffer = ByteArray(length + 2)
+                    this.copyInto(buffer, 0, i, i + length + 2)
+                    result.addAll(buffer.toList())
                     i += length + 2
                 }
             } else i++
@@ -69,7 +80,7 @@ class SimpleMetadataEngine : MetadataAnalyzer, ImageCleaner {
     private fun ByteArray.stripPngMetadata(): ByteArray {
         val result = mutableListOf<Byte>()
         val signature = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
-        result.addAll(signature.map { it })
+        result.addAll(signature.toList())
         var i = 8
         while (i < size - 8) {
             val length = ((this[i].toInt() and 0xFF) shl 24) or ((this[i + 1].toInt() and 0xFF) shl 16) or
@@ -77,7 +88,9 @@ class SimpleMetadataEngine : MetadataAnalyzer, ImageCleaner {
             val type = this.sliceArray(i + 4 until i + 8).decodeToString()
             if (type[0].isLowerCase()) { i += length + 12 } 
             else {
-                for (j in 0 until length + 12) if (i + j < size) result.add(this[i + j])
+                val buffer = ByteArray(length + 12)
+                this.copyInto(buffer, 0, i, i + length + 12)
+                result.addAll(buffer.toList())
                 i += length + 12
                 if (type == "IEND") break
             }
@@ -85,5 +98,13 @@ class SimpleMetadataEngine : MetadataAnalyzer, ImageCleaner {
         return result.toByteArray()
     }
 
-    private fun ByteArray.decodeToStringSafe() = this.map { if (it in 32..126) it.toInt().toChar() else ' ' }.joinToString("")
+    private fun ByteArray.decodeToStringSafe(): String {
+        val scanSize = size.coerceAtMost(1024 * 512) // Limit to 512KB
+        val chars = CharArray(scanSize)
+        for (i in 0 until scanSize) {
+            val b = this[i].toInt() and 0xFF
+            chars[i] = if (b in 32..126) b.toChar() else ' '
+        }
+        return chars.concatToString()
+    }
 }
